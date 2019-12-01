@@ -1,0 +1,22 @@
+function [ vertex_trans ] = get_vertex_transition( iA )
+%VERTICES TRANSITION get vertices of simplex probabilities of each
+%transition probabilities
+
+N=size(iA,1);
+
+for i=1:N
+        for j=1:N
+            Lpri(i,j)=iA{i,j}(1,1);
+            Upri(i,j)=iA{i,j}(1,2);
+        end
+end
+
+for s=1:N
+  
+    vert = get_imprecise_simplex_vertex_from_low_up( Lpri,upper );
+
+    
+end
+
+end
+

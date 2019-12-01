@@ -1,0 +1,197 @@
+function [ relative_distances ] = get_relative_distance_approximate( precise_models,imprecise_models, multi_features ,minimum_value,relativeDistFileName,typeGenerationMultiplePoints,varargin  )
+%RELATIVE DISTANCE calculate distance from each models to ref_model
+%        ref_model: reference model
+%           models: models to compare (Class X Model)
+%  multi_features : if 0 get sum of HSD distance calculated for each
+%                   features and if 1 return distance of each features
+%OPIONAL    alpha (for stationaries probabilities accuracy)    for discrete HMMs
+%        or q,alpha,L     for continuos HHMs
+%(q (for min max outcome accurary es. 3); alpha (for stationaries
+%probabilities accuracy es. 1e-7); L (for distance HSD accuracy) )
+%OUTPUT  relative_distances  [ {ref_model} {group} {relative_distance} ]
+
+
+if (size(varargin,2)>1)
+    q=varargin{1};
+    alpha=varargin{2};
+    L=varargin{3};
+    C=1;
+else
+    alpha=varargin{1};
+    C=0;
+end
+
+cls=size(precise_models,1);
+mdl=size(precise_models,2);
+
+%group=zeros(cls*mdl,1);
+
+iter_precise=1;
+iter_imprecise=1;
+imprecise_index=1;
+
+
+relative_distances_precise=[];
+
+
+for c=1:cls
+    
+    for m=1:mdl
+        
+        if isempty(precise_models{c,m})==0
+            
+            group(iter_precise,1)=c;
+            
+            %precise
+            
+            model_train=precise_models{c,m};
+            
+            
+            %
+            if C==1
+                
+                [ hsd ] = distance_HSD_approximate(model_train{1},model_train{2},model_train{5},multi_features,minimum_value,[],model_train{3},model_train{4},q,alpha,L );
+                
+            else
+                
+                [ hsd ] = distance_HSD_approximate(model_train{1},model_train{2},model_train{5},multi_features,minimum_value,[],model_train{3},alpha );
+                
+            end
+            
+            relative_distances_precise(iter_precise,:)=hsd;
+            
+            %imprecise distance
+            
+            %PiPrecise=model_train{1};
+            %APrecise=model_train{2};
+            
+            model_train=imprecise_models{c,m};
+            
+            %typeGenerationMultiplePoints:
+            %1 from stationary distribution,
+            %2 from transition matrix A
+            if typeGenerationMultiplePoints==1
+                
+                %stationary
+                
+                %generate imprecise stationary prob
+                [ lower  upper lower_subset  subset_index ] = get_imprecise_stationary_prob( model_train{1},model_train{2},1e-6);
+                
+                %[ lower  upper lower_subset  subset_index ] = get_imprecise_stationary_prob( PiPrecise,APrecise,1e-6);
+                
+                %generate consistent vertex probabilities
+                [ vertex ] = get_imprecise_simplex_vertex( lower_subset , subset_index );
+                
+                %             [ stat_distr ] = hmm_stationary_distribution( PiPrecise,APrecise,alpha);
+                %             eps=0.95;
+                %             %get imprecision
+                %             for k=1:size(stat_distr,2)
+                %
+                %                 [ low_up ] = get_impreciseProb( stat_distr(1,k),eps );
+                %
+                %                 lower(1,k)=low_up{1}(1,1);
+                %                 upper(1,k)=low_up{1}(1,2);
+                %
+                %             end
+                %             [ vertex ] = get_imprecise_simplex_vertex_from_low_up( lower,upper );
+                
+                
+                sizVer=size(vertex,1);
+                
+                for v=1:sizVer
+                    
+                    group_imprecise(iter_imprecise,:)=[c imprecise_index];
+                    
+                    %use vertex as precise stationary probabilities (only hidden layer is imprecise, the output layer is precise)
+                    if C==1
+                        
+                        [ hsdImp ] = distance_HSD_approximate(model_train{1},model_train{2},model_train{5},multi_features,minimum_value,vertex(v,:),model_train{3},model_train{4},q,alpha,L );
+                        
+                    else
+                        
+                        [ hsdImp ] = distance_HSD_approximate(model_train{1},model_train{2},model_train{5},multi_features,minimum_value,vertex(v,:),model_train{3},alpha );
+                        
+                    end
+                    
+                    relative_distances_imprecise(iter_imprecise,:)=[hsdImp imprecise_index];
+                    
+                    iter_imprecise=iter_imprecise+1;
+                    
+                end
+                                
+                
+                
+            else
+                
+            %transition
+                
+            
+                %get vertices from transition probabilities
+                [ vertex_trans ] = get_vertex_transition( model_train{2} );
+            
+                %get all permutation of transitions matrices
+                [ transition_matrices ] = generate_transition_matrix_from_vertex( vertex_trans );
+                
+                sizAs=size(transition_matrices,2);
+                
+                %create distance for each HMM 
+                for a=1:sizAs
+                    
+                    group_imprecise(iter_imprecise,:)=[c imprecise_index];
+                    
+                    %use vertex as precise stationary probabilities (only hidden layer is imprecise, the output layer is precise)
+                    if C==1
+                        
+                        [ hsdImp ] = distance_HSD_approximate(model_train{1},transition_matrices{1,a},model_train{5},multi_features,minimum_value,[],model_train{3},model_train{4},q,alpha,L );
+                        
+                    else
+                        
+                        [ hsdImp ] = distance_HSD_approximate(model_train{1},transition_matrices{1,a},model_train{5},multi_features,minimum_value,[],model_train{3},alpha );
+                        
+                    end
+                    
+                    relative_distances_imprecise(iter_imprecise,:)=[hsdImp imprecise_index];
+                    
+                    iter_imprecise=iter_imprecise+1;
+                    
+                end
+                
+                
+            end
+            
+            
+            %interval distance
+            maxDistFeatures=max(relative_distances_imprecise(relative_distances_imprecise(:,end)==imprecise_index,1:end-1));
+            minDistFeatures=min(relative_distances_imprecise(relative_distances_imprecise(:,end)==imprecise_index,1:end-1));
+            
+            relative_distances_min(iter_precise,:)=minDistFeatures;
+            relative_distances_max(iter_precise,:)=maxDistFeatures;
+            
+            %             for f=1:size(hsd,2)
+            %                 if hsd(1,f)>relative_distances_max(1,f) || hsd(1,f)<relative_distances_min(1,f)
+            %                     disp(['Warning precise distance is not inside imprecise interval distance!! F:', num2str(f) ,' hsd precise:',num2str( hsd(1,f)),' min impr dist:',num2str(relative_distances_min(1,f)),' max impr dist:',num2str(relative_distances_max(1,f)) ]);
+            %                 end
+            %             end
+            
+            imprecise_index=imprecise_index+1;
+            
+            disp(['Done relative dist model: c: ', num2str(c) , ' , m: ' , num2str(m)]);
+            
+            iter_precise=iter_precise+1;
+            
+        end
+        
+    end
+end
+
+relative_distances{1,1}=group;
+relative_distances{1,2}=group_imprecise;
+relative_distances{1,3}=relative_distances_precise;
+relative_distances{1,4}=relative_distances_imprecise;
+relative_distances{1,5}=relative_distances_min;
+relative_distances{1,6}=relative_distances_max;
+relative_distances{1,7}=minimum_value;
+
+save(relativeDistFileName,'relative_distances');
+
+end

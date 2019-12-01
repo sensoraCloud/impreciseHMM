@@ -1,0 +1,33 @@
+function [ lowerR,upperR ] = get_reachable_imprecise_prob( lower,upper )
+%get_reachable_imprecise_prob 
+%INPUT 
+%lower [l1 .. lN] imprecise interval  probabilities 
+%upper [u1 .. uN] imprecise interval  probabilities 
+%
+%OUTPUT
+%lower [l1 .. lN] imprecise interval reachable probabilities 
+%upper [u1 .. uN] imprecise interval reachable probabilities
+
+
+N=size(lower,2)M
+
+for i=1:N 
+    lowerR(1,i)=round2(lower(1,i),0.001);
+    upperR(1,i)=round2(upper(1,i),0.001)+0.001;
+end
+
+memLowerR=lowerR;
+
+for i=1:N 
+    app=upperR;
+    app2=lowerR;
+    app(1,i)=0;
+    lowerR(1,i)=max(lowerR(1,i),1-sum(app,2));
+    app2(1,i)=0;
+    lowerR(1,i)=max(lowerR(1,i),1-sum(app,2));
+end
+
+
+
+end
+

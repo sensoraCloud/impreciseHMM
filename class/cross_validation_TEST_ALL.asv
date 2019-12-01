@@ -1,0 +1,725 @@
+function [ ] = cross_validation_TEST_ALL( n_fold,N,F,M,s,datasetNameIstrogram,datasetNameSnippet,q,alpha,L,multi_features,minimum_value,cmd_Istrogram,cmd_Snippet,normalize,bestFeatureSelection,featSelectDistOnModel)
+%in one shot get  Simple feature: likelihood precise , imprecise , SVM ,
+%SVM stationary multiple , SVM transition multiple  Snippet feature:  SVM ,
+%SVM stationary multiple , SVM transition multiple
+
+
+%Istrogram
+
+%create directory
+dirName_Istogram=fullfile(datasetNameIstrogram,['models_','',num2str(N),'','N_','',num2str(F),'','F_',num2str(M),'M_',num2str(s),'s']);
+
+FileDatasetName_Istogram=fullfile('src','features',[datasetNameIstrogram,'.mat']);
+
+if exist(fullfile('src',dirName_Istogram),'dir') ~= 7
+    mkdir('src',dirName_Istogram);
+end
+
+modelsFileNameImprecise=fullfile('src',dirName_Istogram,'modelsImprecise.mat');
+modelsFileNamePrecise=fullfile('src',dirName_Istogram,'modelsPrecise.mat');
+
+if exist(modelsFileNameImprecise,'file') ~= 2
+    %learn models and generates models file learnModels(
+    %featuresFileName,modelsFileName,N,F,C,varargin )
+    featSelec=[];
+    
+    if featSelectDistOnModel==1
+        
+        setFeatureFileName=fullfile('src',dirName_Istogram,'feature_selection.mat');
+        
+        if exist(setFeatureFileName,'file') ~= 2
+            error('Feature Selection File not exist!!');
+        else
+            results = importdata(setFeatureFileName);
+            featSelec=results{1,3};
+        end
+        
+    end
+    
+    [ modelsPrecise_Istrogram modelsImprecise_Istrogram  ] =learnModels(FileDatasetName_Istogram,modelsFileNamePrecise,modelsFileNameImprecise,N,F,M,1,featSelec,s);
+else
+    modelsPrecise_Istrogram =importdata(modelsFileNamePrecise);
+    modelsImprecise_Istrogram =importdata(modelsFileNameImprecise);
+end
+
+%Snippet
+
+%create directory
+dirName_Snippet=fullfile(datasetNameSnippet,['models_','',num2str(N),'','N_','',num2str(F),'','F_',num2str(M),'M_',num2str(s),'s']);
+
+FileDatasetName_Snippet=fullfile('src','features',[datasetNameSnippet,'.mat']);
+
+if exist(fullfile('src',dirName_Snippet),'dir') ~= 7
+    mkdir('src',dirName_Snippet);
+end
+
+modelsFileNameImprecise=fullfile('src',dirName_Snippet,'modelsImprecise.mat');
+modelsFileNamePrecise=fullfile('src',dirName_Snippet,'modelsPrecise.mat');
+
+if exist(modelsFileNameImprecise,'file') ~= 2
+    %learn models and generates models file learnModels(
+    %featuresFileName,modelsFileName,N,F,C,varargin )
+    featSelec=[];
+    
+    if featSelectDistOnModel==1
+        
+        setFeatureFileName=fullfile('src',dirName_Snippet,'feature_selection.mat');
+        
+        if exist(setFeatureFileName,'file') ~= 2
+            error('Feature Selection File not exist!!');
+        else
+            results = importdata(setFeatureFileName);
+            featSelec=results{1,3};
+        end
+        
+    end
+    
+    [ modelsPrecise_Snippet modelsImprecise_Snippet  ] =learnModels(FileDatasetName_Snippet,modelsFileNamePrecise,modelsFileNameImprecise,N,F,M,1,featSelec,s);
+else
+    modelsPrecise_Snippet =importdata(modelsFileNamePrecise);
+    modelsImprecise_Snippet =importdata(modelsFileNameImprecise);
+end
+
+
+
+%imprecise only on istrogram
+
+typeGenerationMultiplePoints=1;
+
+relativeDistFileName=fullfile('src',dirName_Istogram,['relative_distances_',num2str(typeGenerationMultiplePoints),'_typeGenerationMultiplePoints.mat']);
+
+if exist(relativeDistFileName,'file') ~= 2
+    %get relative distance presice, imprecise and interval
+    relative_stat = get_relative_distance_approximate( modelsPrecise_Istrogram,modelsImprecise_Istrogram,multi_features,minimum_value,relativeDistFileName,typeGenerationMultiplePoints,q,alpha,L );
+else
+    relative_stat = importdata(relativeDistFileName);
+end
+
+typeGenerationMultiplePoints=2;
+
+relativeDistFileName=fullfile('src',dirName_Istogram,['relative_distances_',num2str(typeGenerationMultiplePoints),'_typeGenerationMultiplePoints.mat']);
+
+if exist(relativeDistFileName,'file') ~= 2
+    %get relative distance presice, imprecise and interval
+    relative_tran = get_relative_distance_approximate( modelsPrecise_Istrogram,modelsImprecise_Istrogram,multi_features,minimum_value,relativeDistFileName,typeGenerationMultiplePoints,q,alpha,L );
+else
+    relative_tran = importdata(relativeDistFileName);
+end
+
+
+group_single=relative_stat{1};
+relative_distances_precise_Istrogram=relative_stat{3};
+
+
+%typeGenerationMultiplePoints=1
+
+
+%imprecise labels (more point for each model)
+group_multiple_stat=relative_stat{2};
+%each model more point learned from iHMM
+relative_distances_imprecise_stat=relative_stat{4};
+
+%typeGenerationMultiplePoints=2
+
+%imprecise labels (more point for each model)
+group_multiple_tran=relative_tran{2};
+%each model more point learned from iHMM
+relative_distances_imprecise_tran=relative_tran{4};
+
+
+%calulate reltive precise Snippet
+
+typeGenerationMultiplePoints=0;
+
+relativeDistFileName=fullfile('src',dirName_Snippet,['relative_distances_',num2str(typeGenerationMultiplePoints),'_typeGenerationMultiplePoints.mat']);
+
+if exist(relativeDistFileName,'file') ~= 2
+    %get relative distance presice, imprecise and interval
+    relative = get_relative_distance_approximate( modelsPrecise_Snippet,modelsImprecise_Snippet,multi_features,minimum_value,relativeDistFileName,typeGenerationMultiplePoints,q,alpha,L );
+else
+    relative = importdata(relativeDistFileName);
+end
+
+relative_distances_precise_Snippet=relative{3};
+
+
+%normalize dataset
+if normalize==1
+    
+    relative_distances_precise_Istrogram = (relative_distances_precise_Istrogram -repmat(min(relative_distances_precise_Istrogram,[],1),size(relative_distances_precise_Istrogram,1),1))*spdiags(1./(max(relative_distances_precise_Istrogram,[],1)-min(relative_distances_precise_Istrogram,[],1))',0,size(relative_distances_precise_Istrogram,2),size(relative_distances_precise_Istrogram,2));
+    
+    relative_distances_precise_Snippet = (relative_distances_precise_Snippet -repmat(min(relative_distances_precise_Snippet,[],1),size(relative_distances_precise_Snippet,1),1))*spdiags(1./(max(relative_distances_precise_Snippet,[],1)-min(relative_distances_precise_Snippet,[],1))',0,size(relative_distances_precise_Snippet,2),size(relative_distances_precise_Snippet,2));
+    
+    
+    index_stat=relative_distances_imprecise_stat(:,end);
+    
+    relative_distances_imprecise_stat=relative_distances_imprecise_stat(:,1:end-1);
+    
+    relative_distances_imprecise_stat = (relative_distances_imprecise_stat -repmat(min(relative_distances_imprecise_stat,[],1),size(relative_distances_imprecise_stat,1),1))*spdiags(1./(max(relative_distances_imprecise_stat,[],1)-min(relative_distances_imprecise_stat,[],1))',0,size(relative_distances_imprecise_stat,2),size(relative_distances_imprecise_stat,2));
+    
+    relative_distances_imprecise_stat=[relative_distances_imprecise_stat index_stat];
+    
+    
+    index_stat=relative_distances_imprecise_tran(:,end);
+    
+    relative_distances_imprecise_tran=relative_distances_imprecise_tran(:,1:end-1);
+    
+    relative_distances_imprecise_tran = (relative_distances_imprecise_tran -repmat(min(relative_distances_imprecise_tran,[],1),size(relative_distances_imprecise_tran,1),1))*spdiags(1./(max(relative_distances_imprecise_tran,[],1)-min(relative_distances_imprecise_tran,[],1))',0,size(relative_distances_imprecise_tran,2),size(relative_distances_imprecise_tran,2));
+    
+    relative_distances_imprecise_tran=[relative_distances_imprecise_tran index_stat];
+    
+    
+end
+
+cls=size(modelsPrecise_Istrogram,1);
+
+%for imprecise
+%    9 imprecise. Learn: use multiple points. Test: use multiple points
+%    Interval Dominance
+%    likelihood
+
+%for precise
+%likelihood precise
+% SVM
+
+%precise
+confusion_matrix_precise_likelihood_Istogram=zeros(cls,cls);
+accuracy_Likelihood_Istogram=[];
+confusion_matrix_precise_SVM_Istogram=zeros(cls,cls);
+accuracy_SVM_Istogram=[];
+confusion_matrix_precise_SVM_Snippet=zeros(cls,cls);
+accuracy_SVM_Snippet=[];
+confusion_matrix_precise_KNN1_Istogram=zeros(cls,cls);
+accuracy_KNN_Istogram=[];
+confusion_matrix_precise_KNN1_Snippet=zeros(cls,cls);
+accuracy_KNN_Snippet=[];
+
+
+%likelihood
+countNumClass_likelihood=0;
+numberSingleClass_likelihood=0;
+
+confusion_matrix_imprecise_single_likelihood=zeros(cls,cls);
+accuracyImprecise_Single_likelihood=[];
+confusion_matrix_precise_single_likelihood=zeros(cls,cls);
+accuracyPrecise_Single_likelihood=[];
+
+confusion_matrix_imprecise_multiple_likelihood=zeros(cls,cls);
+accuracyImpreciseMultiple_likelihood=[];
+confusion_matrix_precise_multiple_likelihood=zeros(cls,cls);
+accuracyPreciseMultiple_likelihood=[];
+
+numberOfclasses_likelihood=[];
+meanClasses_likelihood=[];
+
+
+
+%stationary
+
+countNumClass_stat=0;
+numberSingleClass_stat=0;
+
+
+confusion_matrix_imprecise_single_stat=zeros(cls,cls);
+accuracy_imprecise_single_stat=[];
+
+confusion_matrix_precise_single_stat=zeros(cls,cls);
+accuracy_precise_single_stat=[];
+
+
+confusion_matrix_imprecise_multiple_stat=zeros(cls,cls);
+accuracyImpreciseMultiple_stat=[];
+confusion_matrix_precise_multiple_stat=zeros(cls,cls);
+accuracyPreciseMultiple_stat=[];
+
+numberOfclasses_stat=[];
+meanClasses_stat=[];
+
+confusion_matrix_imprecise_SVM_multiple_stat=zeros(cls,cls);
+accuracy_SVM_Multiple_stat_Istogram=[];
+
+
+
+%transition
+countNumClass_tran=0;
+numberSingleClass_tran=0;
+
+confusion_matrix_imprecise_single_tran=zeros(cls,cls);
+accuracy_imprecise_single_tran=[];
+
+confusion_matrix_precise_single_tran=zeros(cls,cls);
+accuracy_precise_single_tran=[];
+
+
+confusion_matrix_imprecise_multiple_tran=zeros(cls,cls);
+accuracyImpreciseMultiple_tran=[];
+confusion_matrix_precise_multiple_tran=zeros(cls,cls);
+accuracyPreciseMultiple_tran=[];
+
+numberOfclasses_tran=[];
+meanClasses_tran=[];
+
+confusion_matrix_imprecise_SVM_multiple_tran=zeros(cls,cls);
+accuracy_SVM_Multiple_tran_Istogram=[];
+
+
+countSample_likelihood=0;
+countSample_stat=0;
+countSample_tran=0;
+countSample_snippet=0;
+
+fts_Istogram=importdata(FileDatasetName_Istogram);
+
+%Leave-one-out
+if n_fold==0
+    c = cvpartition(group_single,'leaveout');
+else
+    c = cvpartition(group_single,'k',n_fold);
+end
+
+cp = classperf(group_single); % initializes the CP object
+
+for i = 1:c.NumTestSets
+    
+    testIdx = test(c,i);
+    trainIdx = training(c,i);
+    
+    testGroup=group_single(testIdx,1);
+    test_indxs=find(testIdx==1);
+    train_indexes=find(trainIdx==1);
+    
+    %likelihood
+    
+    %for each test point
+    for point=1:c.TestSize(i)
+        
+        countSample_likelihood=countSample_likelihood+1;
+        
+        models_LearnPrecise_Istrogram=modelsPrecise_Istrogram;
+        
+        %mapping distances to model format
+        countMposition=0;
+        changeClass=0;
+        currentPos=test_indxs(point);
+        clas=testGroup(point,1);
+        
+        if currentPos==1
+            
+            m=1;
+            
+        else
+            
+            while changeClass==0
+                countMposition=countMposition+1;
+                currentPos=currentPos-1;
+                if currentPos==0
+                    changeClass=1;
+                else
+                    newCls=group_single(currentPos,1);
+                    if newCls~=clas
+                        changeClass=1;
+                    end
+                end
+            end
+            
+            m = countMposition;
+            
+        end
+        
+        models_LearnPrecise_Istrogram{testGroup(point,1),m}=[];
+        
+        models_LearnImprecise_Istrogram=modelsImprecise_Istrogram;
+        models_LearnImprecise_Istrogram{testGroup(point,1),m}=[];
+        
+        
+        %O=[fts{testGroup(point,1),m}(1:F,:) ; fts{testGroup(point,1),m}(501:(500+F),:)];
+        O=fts_Istogram{testGroup(point,1),m}(1:F,:);
+        
+        [ classPrecise_likelihood ] = probabilisticHMM_classify_model( models_LearnPrecise_Istrogram , O );
+        
+        %interval dominance
+        
+        %[ classImprecise_likelihood ] = probabilisticImprecise_HMM_classify_model( models_LearnImprecise_Istrogram ,O, 3 );
+        classImprecise_likelihood=[1,2];
+        
+        
+        classification_classes_results{1,1}(countSample_likelihood,1)=testGroup(point,1);
+        classification_classes_results{1,2}(countSample_likelihood,1)=classPrecise_likelihood;
+        classification_classes_results{1,3}{countSample_likelihood,1}=classImprecise_likelihood;
+        
+        numClass=size(classImprecise_likelihood,2);
+        
+        if numClass>1%more class
+            
+            countNumClass_likelihood=countNumClass_likelihood+1;
+            numberOfclasses_likelihood(1,countNumClass_likelihood)=numClass;
+            
+            if sum(classImprecise_likelihood==testGroup(point,1))>0
+                confusion_matrix_imprecise_multiple_likelihood(testGroup(point,1),testGroup(point,1))=confusion_matrix_imprecise_multiple_likelihood(testGroup(point,1),testGroup(point,1))+1;
+            else
+                confusion_matrix_imprecise_multiple_likelihood(testGroup(point,1),classImprecise_likelihood(1,1))=confusion_matrix_imprecise_multiple_likelihood(testGroup(point,1),classImprecise_likelihood(1,1))+1;
+            end
+            
+            confusion_matrix_precise_multiple_likelihood(testGroup(point,1),classPrecise_likelihood)=confusion_matrix_precise_multiple_likelihood(testGroup(point,1),classPrecise_likelihood)+1;
+            
+        else%single class
+            numberSingleClass_likelihood=numberSingleClass_likelihood+1;
+            confusion_matrix_imprecise_single_likelihood(testGroup(point,1),classImprecise_likelihood)=confusion_matrix_imprecise_single_likelihood(testGroup(point,1),classImprecise_likelihood)+1;
+            confusion_matrix_precise_single_likelihood(testGroup(point,1),classPrecise_likelihood)=confusion_matrix_precise_single_likelihood(testGroup(point,1),classPrecise_likelihood)+1;
+        end
+        
+        confusion_matrix_precise_likelihood_Istogram(testGroup(point,1),classPrecise_likelihood)=confusion_matrix_precise_likelihood_Istogram(testGroup(point,1),classPrecise_likelihood)+1;
+        
+        
+    end
+    
+    
+    %distances HSD
+    
+    %ISTOGRAM
+    
+    
+    %K-NN with k=1
+    distance='euclidean';
+    k=1;
+    classes_precise_KNN  = classification( relative_distances_precise_Istrogram(testIdx,:) , minimum_value , group_single(trainIdx,1) , relative_distances_precise_Istrogram(trainIdx,:) , multi_features,5,k,distance,'',cmd_Istrogram,q,alpha,L  );
+            
+    %SVM precise
+    classes_precise_SVM  = classification( relative_distances_precise_Istrogram(testIdx,:) , minimum_value , group_single(trainIdx,1) , relative_distances_precise_Istrogram(trainIdx,:) , multi_features,2,k,distance,'',cmd_Istrogram,q,alpha,L  );
+      
+    
+    %imprecise interval dominance stationary
+    
+    
+    %Learn: use multiple point(SVM). Test: use one point
+    
+    for point=1:size(test_indxs,1)
+        
+        classes_imprecise_SVM_stat{point}  = classification( relative_distances_precise_Istrogram(test_indxs(point),:) , minimum_value , group_multiple_stat(group_multiple_stat(:,end)~=test_indxs(point),1:end-1) , relative_distances_imprecise_stat(relative_distances_imprecise_stat(:,end)~=test_indxs(point),1:end-1) , multi_features,2,k,distance,'',cmd_Istrogram,q,alpha,L  );
+        
+    end
+    
+    
+    
+    for point=1:size(test_indxs,1)
+        
+        countSample_stat=countSample_stat+1;
+        %interval dominance stationary
+        classes_imprecise{point} = classification( relative_distances_imprecise_stat(relative_distances_imprecise_stat(:,end)==test_indxs(point),1:end-1) , minimum_value , group_single(trainIdx,1) , [ {relative_distances_imprecise_stat(relative_distances_imprecise_stat(:,end)~=test_indxs(point),:)} {train_indexes} ], multi_features,4,k,[],'',cmd_Istrogram,q,alpha,L  );
+        
+        classification_classes_results{1,4}{countSample_stat,1}=classes_imprecise{point};
+        
+        classification_classes_results{1,5}{countSample_stat,1}=classes_imprecise_SVM_stat{point};
+        
+        
+        numClass=size(classes_imprecise{point},2);
+        
+        if numClass>1%more class
+            
+            countNumClass_stat=countNumClass_stat+1;
+            numberOfclasses_stat(1,countNumClass_stat)=numClass;
+            
+            %if one class is correct
+            if sum(classes_imprecise{point}==testGroup(point,1))>0
+                
+                confusion_matrix_imprecise_multiple_stat(testGroup(point,1),testGroup(point,1))=confusion_matrix_imprecise_multiple_stat(testGroup(point,1),testGroup(point,1))+1;
+                
+            else %set random class of the set
+                
+                confusion_matrix_imprecise_multiple_stat(testGroup(point,1),classes_imprecise{point}(1,1))=confusion_matrix_imprecise_multiple_stat(testGroup(point,1),classes_imprecise{point}(1,1))+1;
+                
+            end
+            
+            confusion_matrix_precise_multiple_stat(testGroup(point,1),classes_precise_SVM(point))=confusion_matrix_precise_multiple_stat(testGroup(point,1),classes_precise_SVM(point))+1;
+            
+            
+        else%single class
+            
+            for point=1:c.TestSize(i)
+                
+                numberSingleClass_stat=numberSingleClass_stat+1;
+                confusion_matrix_imprecise_single_stat(testGroup(point,1),classes_imprecise{point})=confusion_matrix_imprecise_single_stat(testGroup(point,1),classes_imprecise{point})+1;
+                confusion_matrix_precise_single_stat(testGroup(point,1),classes_precise_SVM(point))=confusion_matrix_precise_single_stat(testGroup(point,1),classes_precise_SVM(point))+1;
+                
+            end
+            
+        end
+                
+    end
+    
+  
+        
+    %imprecise interval dominance transition
+    
+     %Learn: use multiple point(SVM). Test: use one point
+    
+    for point=1:size(test_indxs,1)
+        
+        classes_imprecise_SVM_tran{point}  = classification( relative_distances_precise_Istrogram(test_indxs(point),:) , minimum_value , group_multiple_tran(group_multiple_tran(:,end)~=test_indxs(point),1:end-1) , relative_distances_imprecise_tran(relative_distances_imprecise_tran(:,end)~=test_indxs(point),1:end-1) , multi_features,2,k,distance,'',cmd_Istrogram,q,alpha,L  );
+        
+    end
+    
+    
+    for point=1:size(test_indxs,1)
+        
+        countSample_tran=countSample_tran+1;
+        %interval dominance trans
+        classes_imprecise{point} = classification( relative_distances_imprecise_tran(relative_distances_imprecise_tran(:,end)==test_indxs(point),1:end-1) , minimum_value , group_single(trainIdx,1) , [ {relative_distances_imprecise_tran(relative_distances_imprecise_tran(:,end)~=test_indxs(point),:)} {train_indexes} ], multi_features,4,k,[],'',cmd_Istrogram,q,alpha,L  );
+        
+        classification_classes_results{1,6}{countSample_tran,1}=classes_imprecise{point};
+        
+        classification_classes_results{1,7}{countSample_tran,1}=classes_imprecise_SVM_tran{point};
+        
+        classification_classes_results{1,8}{countSample_tran,1}=classes_precise_KNN(point);
+        
+        classification_classes_results{1,9}{countSample_tran,1}=classes_precise_SVM(point);
+    
+        
+        numClass=size(classes_imprecise{point},2);
+        
+        if numClass>1%more class
+            
+            countNumClass_tran=countNumClass_tran+1;
+            numberOfclasses_tran(1,countNumClass_tran)=numClass;
+            
+            %if one class is correct
+            if sum(classes_imprecise{point}==testGroup(point,1))>0
+                
+                confusion_matrix_imprecise_multiple_tran(testGroup(point,1),testGroup(point,1))=confusion_matrix_imprecise_multiple_tran(testGroup(point,1),testGroup(point,1))+1;
+                
+            else %set random class of the set
+                
+                confusion_matrix_imprecise_multiple_tran(testGroup(point,1),classes_imprecise{point}(1,1))=confusion_matrix_imprecise_multiple_tran(testGroup(point,1),classes_imprecise{point}(1,1))+1;
+                
+            end
+            
+            confusion_matrix_precise_multiple_tran(testGroup(point,1),classes_precise_SVM(point))=confusion_matrix_precise_multiple_tran(testGroup(point,1),classes_precise_SVM(point))+1;
+            
+            
+        else%single class
+            
+            for point=1:c.TestSize(i)
+                
+                numberSingleClass_tran=numberSingleClass_tran+1;
+                confusion_matrix_imprecise_single_tran(testGroup(point,1),classes_imprecise{point})=confusion_matrix_imprecise_single_tran(testGroup(point,1),classes_imprecise{point})+1;
+                confusion_matrix_precise_single_tran(testGroup(point,1),classes_precise_SVM(point))=confusion_matrix_precise_single_tran(testGroup(point,1),classes_precise_SVM(point))+1;
+                
+            end
+            
+        end
+                
+    end
+    
+    %calculate confusion matrix
+    for point=1:size(test_indxs,1)
+        
+        confusion_matrix_imprecise_SVM_multiple_stat(testGroup(point,1),classes_imprecise_SVM_stat{point})=confusion_matrix_imprecise_SVM_multiple_stat(testGroup(point,1),classes_imprecise_SVM_stat{point})+1;
+        
+        confusion_matrix_imprecise_SVM_multiple_tran(testGroup(point,1),classes_imprecise_SVM_tran{point})=confusion_matrix_imprecise_SVM_multiple_tran(testGroup(point,1),classes_imprecise_SVM_tran{point})+1;
+        
+        confusion_matrix_precise_KNN1_Istogram(testGroup(point,1),classes_precise_KNN(point))=confusion_matrix_precise_KNN1_Istogram(testGroup(point,1),classes_precise_KNN(point))+1;
+        
+        confusion_matrix_precise_SVM_Istogram(testGroup(point,1),classes_precise_SVM(point))=confusion_matrix_precise_SVM_Istogram(testGroup(point,1),classes_precise_SVM(point))+1;
+        
+        
+    end
+    
+    
+    
+    %SNIPPET
+    
+    %K-NN with k=1
+    distance='euclidean';
+    k=1;
+    classes_precise_KNN  = classification( relative_distances_precise_Snippet(testIdx,:) , minimum_value , group_single(trainIdx,1) , relative_distances_precise_Snippet(trainIdx,:) , multi_features,5,k,distance,'',cmd_Snippet,q,alpha,L  );
+            
+    %SVM precise
+    classes_precise_SVM  = classification( relative_distances_precise_Snippet(testIdx,:) , minimum_value , group_single(trainIdx,1) , relative_distances_precise_Snippet(trainIdx,:) , multi_features,2,k,distance,'',cmd_Snippet,q,alpha,L  );
+    
+    for point=1:c.TestSize(i)
+        
+        countSample_snippet=countSample_snippet+1;
+        
+        classification_classes_results{1,10}{countSample_snippet,1}=classes_precise_KNN(point);
+        
+        classification_classes_results{1,11}{countSample_snippet,1}=classes_precise_SVM(point);
+        
+        confusion_matrix_precise_KNN1_Snippet(testGroup(point,1),classes_precise_KNN(point))=confusion_matrix_precise_KNN1_Snippet(testGroup(point,1),classes_precise_KNN)point})+1;
+        
+        confusion_matrix_precise_SVM_Snippet(testGroup(point,1),classes_precise_SVM{point})=confusion_matrix_precise_SVM_Snippet(testGroup(point,1),classes_precise_SVM{point})+1;
+        
+    
+    end
+       
+    
+    classperf(cp,classes_precise,testIdx);
+   
+    
+end
+
+
+cp.CorrectRate % queries for the correct classification rate
+
+
+%labels
+results=[];
+results{1,1}=classification_classes_results;
+results{1,2}={'real label' 'likelihood' 'imprecise likelihood' 'Istogrammi: SVM stationary (imprecise)' 'Istogrammi: SVM stationary (precise(Learn SVM with multiple point))' 'Istogrammi: SVM transition (imprecise)' 'Istogrammi: SVM transition (precise(Learn SVM with multiple point))' 'Istogrammi: KNN k=1' 'Istogrammi: SVM precise' 'Snippet: KNN k=1' 'Snippet: SVM precise'};
+
+FileName=fullfile('src',dirName_Istogram,'classification_classes_results.mat');
+save(FileName,'results');
+
+
+%precise
+results=[];
+accuracy_Likelihood_Istogram= get_accuracy( confusion_matrix_precise_likelihood_Istogram );
+accuracy_SVM_Istogram=get_accuracy( confusion_matrix_precise_SVM_Istogram );
+accuracy_SVM_Snippet=get_accuracy( confusion_matrix_precise_SVM_Snippet );
+accuracy_KNN_Istogram=get_accuracy( confusion_matrix_precise_KNN1_Istogram );
+accuracy_KNN_Snippet=get_accuracy( confusion_matrix_precise_KNN1_Snippet );
+
+results{1,1}=confusion_matrix_precise_likelihood_Istogram;
+results{1,2}=accuracy_Likelihood_Istogram;
+
+results{1,3}=confusion_matrix_precise_SVM_Istogram;
+results{1,4}=accuracy_SVM_Istogram;
+
+results{1,5}=confusion_matrix_precise_SVM_Snippet;
+results{1,6}=accuracy_SVM_Snippet;
+
+results{1,7}=confusion_matrix_precise_KNN1_Istogram;
+results{1,8}=accuracy_KNN_Istogram;
+
+results{1,9}=confusion_matrix_precise_KNN1_Snippet;
+results{1,10}=accuracy_KNN_Snippet;
+results{1,11}={'confusion_matrix_precise_likelihood_Istogram' 'accuracy_Likelihood_Istogram' 'confusion_matrix_precise_SVM_Istogram' 'accuracy_SVM_Istogram' 'confusion_matrix_precise_SVM_Snippet' 'accuracy_SVM_Snippet' 'confusion_matrix_precise_KNN1_Istogram' 'accuracy_KNN_Istogram' 'confusion_matrix_precise_KNN1_Snippet' 'accuracy_KNN_Snippet' };
+
+
+FileName=fullfile('src',dirName_Istogram,'precise_accuracy_results.mat');
+save(FileName,'results');
+
+%likelihood
+results=[];
+
+if countNumClass_likelihood>0
+    
+    meanClasses_likelihood=sum(numberOfclasses_likelihood,2) / countNumClass_likelihood;
+    display(['meanClasses: ',num2str(meanClasses_likelihood),' / ', num2str(cls)  ]);
+    
+end
+
+accuracyImprecise_Single_likelihood=get_accuracy( confusion_matrix_imprecise_single_likelihood );
+accuracyPrecise_Single_likelihood=get_accuracy( confusion_matrix_precise_single_likelihood );
+accuracyImpreciseMultiple_likelihood=get_accuracy( confusion_matrix_imprecise_multiple_likelihood );
+accuracyPreciseMultiple_likelihood=get_accuracy( confusion_matrix_precise_multiple_likelihood );
+
+results{1,1}=numberSingleClass_likelihood;
+results{1,2}=countSample_likelihood - numberSingleClass_likelihood;
+results{1,3}=meanClasses_likelihood;
+
+results{1,4}=confusion_matrix_imprecise_single_likelihood;
+results{1,5}=accuracyImprecise_Single_likelihood;
+
+results{1,6}=confusion_matrix_precise_single_likelihood;
+results{1,7}=accuracyPrecise_Single_likelihood;
+
+results{1,8}=confusion_matrix_imprecise_multiple_likelihood;
+results{1,9}=accuracyImpreciseMultiple_likelihood;
+
+results{1,10}=confusion_matrix_precise_multiple_likelihood;
+results{1,11}=accuracyPreciseMultiple_likelihood;
+results{1,12}={'numberSingleClass_likelihood' 'numberMultipleClass_likelihood' 'meanClasses_likelihood' 'confusion_matrix_imprecise_single_likelihood' 'accuracyImprecise_Single_likelihood' 'confusion_matrix_precise_single_likelihood' 'accuracyPrecise_Single_likelihood' 'confusion_matrix_imprecise_multiple_likelihood' 'accuracyImpreciseMultiple_likelihood' 'confusion_matrix_precise_multiple_likelihood' 'accuracyPreciseMultiple_likelihood'};
+
+FileName=fullfile('src',dirName_Istogram,'imprecise_accuracy_results_likelihood.mat');
+save(FileName,'results')
+
+%stationary
+results=[];
+
+if countNumClass_stat>0
+    
+    meanClasses_stat=sum(numberOfclasses_stat,2) / countNumClass_stat;
+    display(['meanClasses: ',num2str(meanClasses_stat),' / ', num2str(cls)  ]);
+    
+end
+
+
+accuracy_imprecise_single_stat=get_accuracy( confusion_matrix_imprecise_single_stat );
+
+accuracy_precise_single_stat=get_accuracy( confusion_matrix_precise_single_stat );
+
+accuracyImpreciseMultiple_stat=get_accuracy( confusion_matrix_imprecise_multiple_stat );
+
+accuracyPreciseMultiple_stat=get_accuracy( confusion_matrix_precise_multiple_stat );
+
+accuracy_SVM_Multiple_stat_Istogram=get_accuracy( confusion_matrix_imprecise_SVM_multiple_stat );
+
+results{1,1}=numberSingleClass_stat;
+results{1,2}=countSample_stat - numberSingleClass_stat;
+results{1,3}=meanClasses_stat;
+
+results{1,4}=confusion_matrix_imprecise_single_stat;
+results{1,5}=accuracy_imprecise_single_stat;
+
+results{1,6}=confusion_matrix_precise_single_stat;
+results{1,7}=accuracy_precise_single_stat;
+
+results{1,8}=confusion_matrix_imprecise_multiple_stat;
+results{1,9}=accuracyImpreciseMultiple_stat;
+
+results{1,10}=confusion_matrix_precise_multiple_stat;
+results{1,11}=accuracyPreciseMultiple_stat;
+
+results{1,12}=confusion_matrix_imprecise_SVM_multiple_stat;
+results{1,13}=accuracy_SVM_Multiple_stat_Istogram;
+
+results{1,14}={'numberSingleClass_stat' 'numberMultipleClass_stat' 'meanClasses_stat' 'confusion_matrix_imprecise_single_stat' 'accuracy_imprecise_single_stat' 'confusion_matrix_precise_single_stat' 'accuracy_precise_single_stat' 'confusion_matrix_imprecise_multiple_stat' 'accuracyImpreciseMultiple_stat' 'confusion_matrix_precise_multiple_stat' 'accuracyPreciseMultiple_stat' 'confusion_matrix_imprecise_SVM_multiple_stat' 'accuracy_SVM_Multiple_stat_Istogram'};
+
+FileName=fullfile('src',dirName_Istogram,'imprecise_stationary_accuracy_results_istogram.mat');
+save(FileName,'results')
+
+%transition
+results=[];
+
+if countNumClass_tran>0
+    
+    meanClasses_tran=sum(numberOfclasses_tran,2) / countNumClass_tran;
+    display(['meanClasses: ',num2str(meanClasses_tran),' / ', num2str(cls)  ]);
+    
+end
+
+accuracy_imprecise_single_tran=get_accuracy( confusion_matrix_imprecise_single_tran );
+
+accuracy_precise_single_tran=get_accuracy( confusion_matrix_precise_single_tran );
+
+accuracyImpreciseMultiple_tran=get_accuracy( confusion_matrix_imprecise_multiple_tran );
+
+accuracyPreciseMultiple_tran=get_accuracy( confusion_matrix_precise_multiple_tran );
+
+accuracy_SVM_Multiple_tran_Istogram=get_accuracy( confusion_matrix_imprecise_SVM_multiple_tran );
+
+results{1,1}=numberSingleClass_tran;
+results{1,2}=countSample_tran - numberSingleClass_tran;
+results{1,3}=meanClasses_tran;
+
+results{1,4}=confusion_matrix_imprecise_single_tran;
+results{1,5}=accuracy_imprecise_single_tran;
+
+results{1,6}=confusion_matrix_precise_single_tran;
+results{1,7}=accuracy_precise_single_tran;
+
+results{1,8}=confusion_matrix_imprecise_multiple_tran;
+results{1,9}=accuracyImpreciseMultiple_tran;
+
+results{1,10}=confusion_matrix_precise_multiple_tran;
+results{1,11}=accuracyPreciseMultiple_tran;
+
+results{1,12}=confusion_matrix_imprecise_SVM_multiple_tran;
+results{1,13}=accuracy_SVM_Multiple_tran_Istogram;
+
+results{1,14}={'numberSingleClass_tran' 'numberMultipleClass_tran' 'meanClasses_tran' 'confusion_matrix_imprecise_single_tran' 'accuracy_imprecise_single_tran' 'confusion_matrix_precise_single_tran' 'accuracy_precise_single_tran' 'confusion_matrix_imprecise_multiple_tran' 'accuracyImpreciseMultiple_tran' 'confusion_matrix_precise_multiple_tran' 'accuracyPreciseMultiple_tran' 'confusion_matrix_imprecise_SVM_multiple_tran' 'accuracy_SVM_Multiple_tran_Istogram'};
+
+FileName=fullfile('src',dirName_Istogram,'imprecise_transition_accuracy_results_istogram.mat');
+save(FileName,'results')
+    
+end

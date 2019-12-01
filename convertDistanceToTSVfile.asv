@@ -1,0 +1,20 @@
+sizeR=size(relative_distances{1,1},1);
+
+fid = fopen('datasetKTH.TSV', 'a');
+
+Nbit=round(log2(size(unique(relative_distances{1,1}(:,1)),1)));
+
+for d=1:sizeR
+   
+    binaryClass = get_binary_control(relative_distances{1,1}(d,1),Nbit,0);
+
+    classStr=sprintf('%g\t', binaryClass);
+
+    fprintf(fid, '%s \t %s\r\n', sprintf('%g\t', relative_distances{1,2}(d,:)) ,classStr );
+    
+end
+
+fclose(fid);
+
+
+

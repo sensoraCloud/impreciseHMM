@@ -1,0 +1,58 @@
+function [Pi, A,Mu, Sigma] =  init_duration_segment_kmeans(data, N,eps)
+% INIT_MHMM Compute initial param. estimates for an HMM with Gaussian outputs using segment k-means.
+% [init_state_prob, transmat, obsmat, mixmat, mu, Sigma] = init_mhmm(data, Q, M, cov_type, left_right)
+%
+% Inputs:
+% data(:,t,l) = observation vector at time t in sequence l
+% N = num. hidden states
+% eps threshold for duration (positive near zero es. 0.2 )
+%
+% Outputs:
+% Pi = Pr(Q(1) = i)
+% A = Pr(Q(t+1)=j | Q(t)=i)
+% Mu  = mean of Y(t) given Q(t)=j
+% Sigma  var. of Y(t) given Q(t)=j
+
+F=size(data,1);
+
+%trovo medie e varianze
+[PiInit, AInit, mixmat, MuInit, SigmaInitDiag] =  init_mhmm(data, N , 1, 'diag', 1);
+newSigma=zeros(F,N);
+ for s=1:N
+    for f=1:F      
+         newSigma(f,s)=SigmaInitDiag(f,f,s);
+    end
+ end
+
+%trovo la massima sequenza degli stati dalle medie e transizioni uniformi
+%[seqQ loglik] = viterbi_path(PiInit2, AInit2,obs, MuInit2,newSigmaSegKmeans2);
+[seqQ loglik] = viterbi_path_duration(PiInit, AInit,data,eps,MuInit,newSigma);
+
+%stimo tramite ML le prob di transizione
+PiNew=zeros(N,1);
+for s=1:N
+    if seqQ(1,1)==s
+        PiNew(s,1)=1;
+    end
+end
+
+Anew=zeros(N,N);
+seqStr=num2str(seqQ);
+idx= ~isspace(seqStr);
+seqStr=seqStr(idx);
+
+Num_A=zeros(N,N);
+Den_A=zeros(N,N);
+
+for i=1:N
+    for j=1:N
+   
+        Num_A(i,j)=size(findstr(seqStr,[num2str(i),num2str(j)]),2);
+        
+        Den_A(i,j)=size(findstr(seqStr(1:size(seqStr,2)-1),num2str(i)),2);
+        
+        Anew(i,j)=Num_A(i,j) / Den_A(i,j);
+    end
+end
+
+end

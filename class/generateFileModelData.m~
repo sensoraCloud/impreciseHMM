@@ -1,0 +1,97 @@
+function [] = generateFileModelData( iPi,iA,O,FileName,varargin )
+%INPUT iPi : prior probability
+%      iA :  transition matrix  
+%      O : observations (F X T)
+%      FileName: output file name
+%      Optional iMu,iSigma if continuos observation or iB if discrete observation 
+%OUTPUT write Model e Data file (FileName).model (FileName).data
+N=size(iA,1);   % Number of states for the hidden variable
+if (size(varargin,2)>1)
+    iMu=varargin{1};
+    iSigma=varargin{2};
+else     
+    iB=varargin{1};
+    M=size(iB,2);
+    F=size(iB,3);    
+    lowerA='';
+    upperA='';
+    lowerB='';
+    upperB='';
+    lowerPi='';
+    upperPi='';   
+    for s1=1:N
+        for s2=1:N
+            if ((s1==1) && (s2==1))
+                lowerA=num2str(iA{s1,s2}(1,1));
+                upperA=num2str(iA{s1,s2}(1,2));
+            else
+                lowerA=[lowerA,' ',num2str(iA{s1,s2}(1,1))];
+                upperA=[upperA,' ',num2str(iA{s1,s2}(1,2))];
+            end
+        end
+    end    
+    % Multi features ???
+     for f=1:1
+        for s=1:N
+            for m=1:M
+                if ((f==1) && (s==1) && (m==1))
+                    lowerB=num2str(iB{s,m,f}(1,1));
+                    upperB=num2str(iB{s,m,f}(1,2));
+                else
+                    lowerB=[lowerB,' ',num2str(iB{s,m,f}(1,1))];
+                    upperB=[upperB,' ',num2str(iB{s,m,f}(1,2))];
+                end
+            end            
+        end
+     end    
+     for i=1:N
+         if (i==1)
+              lowerPi=num2str(iPi{i,1}(1,1));
+              upperPi=num2str(iPi{i,1}(1,2));           
+         else
+              lowerPi=[lowerPi,' ',num2str(iPi{i,1}(1,1))];
+              upperPi=[upperPi,' ',num2str(iPi{i,1}(1,2))];           
+         end
+     end     
+    if exist([FileName,'.model'],'file')==2 
+        delete([FileName,'.model']);
+    end
+    file_model = fopen([FileName,'.model'],'w');
+    fprintf(file_model,[num2str(N),'\n',num2str(M),'\n',lowerA,'\n',upperA,'\n',lowerB,'\n',upperB,'\n',lowerPi,'\n',upperPi]);
+    fclose(file_model); 
+end
+if exist([FileName,'.data'],'file')==2 
+        delete([FileName,'.data']);
+end
+file_data = fopen([FileName,'.data'],'w');
+O(1,:)=O(1,:) - 1; %Denis take value from 0 to M-1, not 1 to M
+T=size(O,2);
+for t=1:T
+    if t==1
+        obs_data=num2str(O(1,t));
+    else
+        obs_data=[obs_data,' ',num2str(O(1,t))];
+    end
+end
+fprintf(file_data,obs_data);
+fclose(file_data);
+end
+% MODEL INPUT FILE TEMPLATE
+% lines starting with '#' are ignored
+% number of states
+% N
+% number of outcomes
+% M
+% lower transition probabilities
+% p1 p2 ... pN pN+1 ... pN^2
+% upper transition probabilities
+% p1 p2 ... pN pN+1 ... pN^2
+% lower emission probabilities
+% p1 p2 ... pN pN+1 ... pN^2
+% upper emission probabilities
+% p1 p2 ... pM pM+1 ... pN*M
+% lower prior probabilities
+% p1 p2 ... pN
+% upper prior probabilities
+% p1 p2 ... pN
+% blank or comment line at the end

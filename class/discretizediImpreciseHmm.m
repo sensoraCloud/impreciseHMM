@@ -1,0 +1,85 @@
+function [ iB O ] = discretizediImpreciseHmm( iA,O,varargin )
+%DISCRETIZED iHMM continuos or discrete  multi-features to discrete HMM mono-feature 
+%INPUT iPi : prior probability
+%      iA :  transition matrix  
+%      O : observations (F X T)
+%      OPTIONAL iMu,iSigma or iB
+%OUTPUT iB emission matrix and O new mapped Observation (1,2,3,...,T) 
+if (size(varargin,2)>1)
+    iMu=varargin{1};
+    iSigma=varargin{2};
+    C=1;
+else 
+    iBold=varargin{1};
+    C=0;
+end
+T=size(O,2);
+N=size(iA,1);
+iB=cell(N,T);
+F=size(O,1);
+%from multi-features to mono-feature
+if C==0
+    %product of lowers and product of uppers(for indipendece of multi-feature obervation)
+    for s=1:N
+        for t=1:T         
+            prob_obs_low=1;
+            prob_obs_up=1;
+            for f=1:F
+                prob_obs_low=prob_obs_low*iBold{s,O(f,t),f}(1,1);
+                prob_obs_up=prob_obs_up*iBold{s,O(f,t),f}(1,2);
+            end
+            iB{s,t}=[prob_obs_low prob_obs_up];
+        end
+    end    
+else    
+    %max_log_probs_obs = -1000;
+    emission = zeros(N,T);
+    maxin = 0;
+    %generate iB Matrix (N X T) (M=T assume that each t is different)
+    for s=1:N
+        for t=1:T           
+            %case precise
+            prob_obs=0;
+            % Sistemare numericamente
+            for f=1:1          
+                emission(s,t)= log(normpdf(O(f,t),iMu(f,s),sqrt(iSigma(f,s))));
+                if emission(s,t)>maxin
+                    maxin = emission(s,t);
+                end
+                %prob_obs=prob_obs + exp(log(normpdf(O(f,t),iMu(f,s),sqrt(iSigma(f,s)))));%/normpdf(iMu(f,s),iMu(f,s),sqrt(iSigma(f,s)));   
+                %fprintf(' %2.4f \n',normpdf(O(f,t),iMu(f,s),sqrt(iSigma(f,s))));
+                %fprintf(' %2.4f %2.4f %2.4f \n',O(f,t),iMu(f,s),sqrt(iSigma(f,s)));                
+                %prob_obs=prob_obs*pdf('Normal',O(f,t),iMu(f,s),sqrt(iSigma(f,s)))
+            end           
+%            if prob_obs > max_log_probs_obs
+%                max_log_probs_obs == probs_obs;
+%            end
+            iB{s,t}=[prob_obs prob_obs];            
+%case imprecise
+%             prob_obs_low=1;
+%             prob_obs_up=1;             
+%             for f=1:F
+%                 %use Mu lower
+%                 prob_obs_low=prob_obs_low*normpdf(O(f,t),iMu{f,s}(1,1),sqrt(iSigma(f,s)));
+%                 %use Mu upper
+%                 prob_obs_up=prob_obs_up*normpdf(O(f,t),iMu{f,s}(1,2),sqrt(iSigma(f,s)));
+%             end%             
+%             if prob_obs_low<prob_obs_up
+%                 iB{s,t}=[prob_obs_low prob_obs_up];
+%             else
+%                 iB{s,t}=[prob_obs_up prob_obs_low];
+%             end            
+        end
+    end   
+    for s=1:N
+        for t=1:T           
+           emission(s,t)=exp(emission(s,t)-maxin);
+           if emission(s,t)< 0.00001,
+               emission(s,t)=0.00001;
+           end
+           iB{s,t}=[emission(s,t) emission(s,t)];
+        end
+    end
+end
+O=1:1:T;
+end
